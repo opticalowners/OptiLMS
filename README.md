@@ -4,7 +4,7 @@ An interactive demo simulating the complete job lifecycle of an optical laborato
 
 ### [▶ Launch Live Demo](https://opticalowners.github.io/OptiLMS/)
 
-![OptiLMS Demo](https://img.shields.io/badge/Status-Interactive_Demo-00e5c3?style=for-the-badge) ![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge) ![React](https://img.shields.io/badge/React-18-61DAFB?style=for-the-badge)
+![OptiLMS Demo](https://img.shields.io/badge/Status-Interactive_Demo-00e5c3?style=for-the-badge) ![License](https://img.shields.io/badge/License-Proprietary-red?style=for-the-badge) ![React](https://img.shields.io/badge/React-18-61DAFB?style=for-the-badge)
 
 ## Quick Start
 
@@ -86,4 +86,4 @@ OptiLMS is a commercial SaaS Optical Lab Management System designed for optical 
 
 ## License
 
-MIT — see [LICENSE](LICENSE) for details.
+Copyright (c) 2025 OptiLMS. All rights reserved. This software is proprietary. See [LICENSE](LICENSE) for details.
