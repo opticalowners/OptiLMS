@@ -1,0 +1,1028 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OptiLMS — Optical Lab Management System Demo</title>
+  <meta name="description" content="Interactive demo of OptiLMS, a SaaS Optical Lab Management System showing all 10 production stages from order intake to shipping." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body, #root { height: 100%; }
+    body { background: #060a12; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #060a12; }
+    ::-webkit-scrollbar-thumb { background: #1a2744; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #243356; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script type="text/babel">
+const { useState, useEffect } = React;
+
+
+
+/*
+  OptiLMS — Full Job Lifecycle Demo
+  Aesthetic: Industrial control room meets precision optics.
+  Dark theme with cyan/teal primary, warm amber secondary.
+  Monospace data, clean geometry, animated transitions.
+*/
+
+const C = {
+  bg: "#060a12", bgCard: "#0c1220", bgElevated: "#111a2e",
+  border: "#1a2744", borderLight: "#243356",
+  cyan: "#00e5c3", cyanDim: "rgba(0,229,195,0.10)", cyanGlow: "rgba(0,229,195,0.30)",
+  amber: "#ffb020", amberDim: "rgba(255,176,32,0.10)",
+  red: "#ff5c5c", redDim: "rgba(255,92,92,0.10)",
+  blue: "#5b9fff", blueDim: "rgba(91,159,255,0.10)",
+  violet: "#b07cff", violetDim: "rgba(176,124,255,0.10)",
+  green: "#3ddc84", greenDim: "rgba(61,220,132,0.10)",
+  text: "#e8edf5", textMid: "#8899b4", textDim: "#4d6080",
+};
+
+const STAGES = [
+  { id: "intake", label: "Order Intake", icon: "📥", desc: "Doctor submits Rx" },
+  { id: "trace", label: "Frame Trace", icon: "📐", desc: "Tracer captures shape" },
+  { id: "design", label: "Lens Design", icon: "🧮", desc: "LDS calculates surface" },
+  { id: "surface", label: "Surfacing", icon: "⚙️", desc: "Generator cuts curves" },
+  { id: "polish", label: "Polish", icon: "✨", desc: "Polisher smooths lens" },
+  { id: "coat", label: "Coating", icon: "🎨", desc: "AR/tint applied" },
+  { id: "edge", label: "Edging", icon: "💎", desc: "Cut to frame shape" },
+  { id: "qc", label: "Quality Check", icon: "🔍", desc: "Verify Rx accuracy" },
+  { id: "assemble", label: "Assembly", icon: "🔧", desc: "Mount in frame" },
+  { id: "ship", label: "Ship", icon: "📦", desc: "Deliver to provider" },
+];
+
+const ORDER = {
+  id: "ORD-10247",
+  patient: "Johnson, Marcus",
+  provider: "Dr. Williams Eye Care",
+  frame: "Ray-Ban RB5154 51-21-145",
+  rx: {
+    od: { sph: -2.50, cyl: -0.75, axis: 180, add: 2.00 },
+    os: { sph: -3.00, cyl: -1.00, axis: 5, add: 2.00 },
+  },
+  pd: { od: 31.5, os: 32.0 },
+  ocHt: { od: 22.0, os: 22.0 },
+  lens: "Essilor Varilux X 4D",
+  material: "MR-7 (1.67 index)",
+  coating: "Crizal Sapphire UV AR",
+  tint: "None",
+  priority: "Rush",
+};
+
+const STAGE_DATA = {
+  intake: {
+    title: "Order Received via OptiLMS Portal",
+    omaPacket: null,
+    detail: "The eyecare provider submits the Rx through OptiLMS's web portal. The system validates the prescription, selects the optimal lens blank from inventory, and creates the production job.",
+    events: [
+      { t: "14:22:01", msg: "Order received from Dr. Williams Eye Care portal", type: "info" },
+      { t: "14:22:01", msg: "Patient: Johnson, Marcus | Priority: RUSH", type: "info" },
+      { t: "14:22:02", msg: "Rx validated — OD: -2.50 -0.75x180 Add +2.00 | OS: -3.00 -1.00x005 Add +2.00", type: "success" },
+      { t: "14:22:03", msg: "Lens selected: Essilor Varilux X 4D (1.67 MR-7)", type: "success" },
+      { t: "14:22:03", msg: "Blank allocated: ESS-MR7-167 (Qty 2) from inventory", type: "info" },
+      { t: "14:22:04", msg: "Job ORD-10247 created — routed to Tray #247", type: "success" },
+      { t: "14:22:04", msg: "Production path: Trace → LDS → Surface → Polish → Coat → Edge → QC → Ship", type: "info" },
+    ],
+  },
+  trace: {
+    title: "Frame Tracer Captures Shape Data",
+    device: "National Optronics 7E",
+    connection: "RS-232 COM3 @ 9600 baud",
+    omaPacket: `>> TX to Tracer (REQ=TRC)
+REQ=TRC
+JOB="10247"
+DO=B
+
+<< RX from Tracer (ANS)
+REQ=TRC
+ANS=0
+JOB="10247"
+DO=B
+FNAM="RB5154"
+DBL=15.49
+HBOX=55.16;54.90
+VBOX=30.69;31.11
+FCRV=3.88;3.88
+ZTILT=9.14;9.14
+CIRC=146.21;146.14
+TRCFMT=1;400;E;R;F
+R=2558;2575;2589;2607;2623;2639
+R=2656;2674;2692;2712;2730;2750
+R=2771;2790;2810;2828;2845;2859
+R=2873;2882;2889;2891;2893;2891`,
+    events: [
+      { t: "14:24:12", msg: "Tray #247 scanned at Tracer station", type: "info" },
+      { t: "14:24:12", msg: "TX → Tracer [COM3]: REQ=TRC JOB=\"10247\" DO=B", type: "tx" },
+      { t: "14:24:13", msg: "Tracer: Frame mounted, initiating 400-point scan...", type: "info" },
+      { t: "14:24:18", msg: "RX ← Tracer [COM3]: ANS=0 (Success) — 400 radial points captured", type: "rx" },
+      { t: "14:24:18", msg: "Frame shape: 55.16 x 30.69mm | Bridge: 15.49mm | Circ: 146.21mm", type: "success" },
+      { t: "14:24:19", msg: "Trace data saved to job — routing to Lens Design Server", type: "success" },
+    ],
+  },
+  design: {
+    title: "Lens Design Server Calculates Freeform Surface",
+    device: "IOT Freeform Server",
+    connection: "TCP/IP 192.168.1.60:8080",
+    omaPacket: `>> TX to LDS Server (HTTP POST)
+{
+  "job": "10247",
+  "design": "Varilux X 4D",
+  "rx_od": { "sph": -2.50, "cyl": -0.75,
+    "axis": 180, "add": 2.00 },
+  "rx_os": { "sph": -3.00, "cyl": -1.00,
+    "axis": 5, "add": 2.00 },
+  "pd": { "od": 31.5, "os": 32.0 },
+  "oc_height": { "od": 22.0, "os": 22.0 },
+  "frame": {
+    "hbox": [55.16, 54.90],
+    "vbox": [30.69, 31.11],
+    "dbl": 15.49,
+    "trace_points": 400
+  },
+  "material_index": 1.67
+}
+
+<< RX from LDS Server (Response)
+{
+  "status": "OK",
+  "surface_file": "VX4D_10247.sdf",
+  "base_curve": { "od": 4.25, "os": 4.50 },
+  "center_thickness": { "od": 1.8, "os": 2.0 },
+  "edge_thickness": { "od": 3.2, "os": 3.5 },
+  "blank_size": 70,
+  "points_calculated": 12000
+}`,
+    events: [
+      { t: "14:24:22", msg: "Sending Rx + trace data to IOT Freeform Server [192.168.1.60]", type: "tx" },
+      { t: "14:24:23", msg: "LDS computing Varilux X 4D progressive surface (12,000 points)...", type: "info" },
+      { t: "14:24:28", msg: "LDS response: Surface file generated (VX4D_10247.sdf)", type: "rx" },
+      { t: "14:24:28", msg: "OD: Base 4.25 | CT 1.8mm | ET 3.2mm | Blank 70mm", type: "success" },
+      { t: "14:24:28", msg: "OS: Base 4.50 | CT 2.0mm | ET 3.5mm | Blank 70mm", type: "success" },
+      { t: "14:24:29", msg: "Surface file validated — decentration calculated — routing to Generator", type: "success" },
+    ],
+  },
+  surface: {
+    title: "Generator Cuts the Freeform Lens Surface",
+    device: "Satisloh VFT-orbit 2",
+    connection: "TCP/IP 192.168.1.50:5001",
+    omaPacket: `>> TX to Generator (OMA Packet)
+REQ=FIL
+JOB="10247"
+DO=R
+SPH=-2.50
+CYL=-0.75
+AX=180
+ADD=2.00
+LIND=1.67
+BCURV=4.25
+CTHK=1.80
+BLKD=70
+GDEC=2.5;0.0
+LNAM="Varilux X 4D"
+LTYP=PAL
+SURF="VX4D_10247_OD.sdf"
+
+<< RX from Generator (Status)
+ANS=0
+JOB="10247"
+DO=R
+STATUS=COMPLETE
+STIME=184`,
+    events: [
+      { t: "14:30:05", msg: "Tray #247 scanned at Generator station", type: "info" },
+      { t: "14:30:05", msg: "TX → Generator [TCP]: REQ=FIL JOB=\"10247\" DO=R (OD lens first)", type: "tx" },
+      { t: "14:30:06", msg: "Generator: Blank mounted, diamond tool calibrated...", type: "info" },
+      { t: "14:30:07", msg: "Surfacing OD lens — 12,000 point freeform cut in progress...", type: "info" },
+      { t: "14:33:11", msg: "RX ← Generator: ANS=0 DO=R STATUS=COMPLETE STIME=184s", type: "rx" },
+      { t: "14:33:12", msg: "TX → Generator: REQ=FIL JOB=\"10247\" DO=L (OS lens)", type: "tx" },
+      { t: "14:36:28", msg: "RX ← Generator: ANS=0 DO=L STATUS=COMPLETE STIME=196s", type: "rx" },
+      { t: "14:36:29", msg: "Both lenses surfaced — routing to Polisher", type: "success" },
+    ],
+  },
+  polish: {
+    title: "Polisher Smooths the Cut Surface",
+    device: "Satisloh SP-3000",
+    connection: "RS-232 COM5 @ 9600 baud",
+    omaPacket: `>> TX to Polisher (OMA Packet)
+REQ=FIL
+JOB="10247"
+DO=B
+LIND=1.67
+BCURV=4.25;4.50
+LTYP=PAL
+
+<< RX from Polisher (Status)
+ANS=0
+JOB="10247"
+STATUS=COMPLETE
+PTIME=240`,
+    events: [
+      { t: "14:38:00", msg: "Tray #247 scanned at Polisher station", type: "info" },
+      { t: "14:38:01", msg: "TX → Polisher [COM5]: REQ=FIL JOB=\"10247\" DO=B", type: "tx" },
+      { t: "14:38:02", msg: "Polisher: Soft pad selected for 1.67 index, cycle starting...", type: "info" },
+      { t: "14:42:02", msg: "RX ← Polisher [COM5]: ANS=0 STATUS=COMPLETE PTIME=240s", type: "rx" },
+      { t: "14:42:03", msg: "Surface clarity verified — routing to Coating", type: "success" },
+    ],
+  },
+  coat: {
+    title: "AR Coating Applied in Vacuum Chamber",
+    device: "Satisloh MC-380",
+    connection: "TCP/IP 192.168.1.51:5001",
+    omaPacket: `>> TX to Coater (OMA Packet)
+REQ=FIL
+JOB="10247"
+DO=B
+COAT=AR-SAPPH
+LIND=1.67
+HARD=YES
+UV=YES
+SMUDGE=YES
+
+<< RX from Coater (Status)
+ANS=0
+JOB="10247"
+STATUS=COMPLETE
+CTIME=3600`,
+    events: [
+      { t: "14:44:00", msg: "Tray #247 scanned at Coating station", type: "info" },
+      { t: "14:44:01", msg: "TX → Coater [TCP]: REQ=FIL JOB=\"10247\" COAT=AR-SAPPH", type: "tx" },
+      { t: "14:44:02", msg: "Coating recipe: Hard coat → UV filter → Crizal Sapphire AR (6 layers) → Smudge resist", type: "info" },
+      { t: "14:44:03", msg: "Lenses loaded into vacuum chamber — cycle starting (est. 60 min)...", type: "info" },
+      { t: "15:44:05", msg: "RX ← Coater [TCP]: ANS=0 STATUS=COMPLETE CTIME=3600s", type: "rx" },
+      { t: "15:44:06", msg: "AR coating verified — routing to Edger", type: "success" },
+    ],
+  },
+  edge: {
+    title: "Edger Cuts Lens to Frame Shape",
+    device: "Briot Alta SX",
+    connection: "RS-232 COM6 @ 9600 baud",
+    omaPacket: `>> TX to Edger (OMA Packet)
+REQ=FIL
+JOB="10247"
+DO=B
+SPH=-2.50;-3.00
+CYL=-0.75;-1.00
+AX=180;005
+MPD=31.5;32.0
+OCHT=22.0;22.0
+LIND=1.67
+FNAM="RB5154"
+DBL=15.49
+HBOX=55.16;54.90
+VBOX=30.69;31.11
+FCRV=3.88;3.88
+TRCFMT=1;400;E;R;F
+R=2558;2575;2589;2607;2623;2639
+R=2656;2674;2692;2712;2730;2750
+ETYP=GROOVE
+GPTS=1.0;1.0
+
+<< RX from Edger (Status)
+ANS=0
+JOB="10247"
+STATUS=COMPLETE
+ETIME=95`,
+    events: [
+      { t: "15:46:00", msg: "Tray #247 scanned at Edger station", type: "info" },
+      { t: "15:46:01", msg: "TX → Edger [COM6]: REQ=FIL with Rx + 400-point trace data", type: "tx" },
+      { t: "15:46:02", msg: "Edger: Diamond wheel selected, groove edge type, decentration applied...", type: "info" },
+      { t: "15:46:03", msg: "Cutting OD lens to frame shape (groove for nylon cord)...", type: "info" },
+      { t: "15:47:00", msg: "OD lens complete — starting OS lens...", type: "info" },
+      { t: "15:47:35", msg: "RX ← Edger [COM6]: ANS=0 STATUS=COMPLETE ETIME=95s", type: "rx" },
+      { t: "15:47:36", msg: "Both lenses edged — routing to QC", type: "success" },
+    ],
+  },
+  qc: {
+    title: "Lensometer Verifies Final Rx",
+    device: "Auto-Lensometer",
+    connection: "RS-232 COM8",
+    omaPacket: `<< RX from Lensometer (Measured Values)
+JOB="10247"
+DO=R
+SPH=-2.48
+CYL=-0.76
+AX=180
+ADD=1.98
+PRVM=0.00
+
+DO=L
+SPH=-2.99
+CYL=-1.01
+AX=005
+ADD=2.01
+PRVM=0.00`,
+    events: [
+      { t: "15:49:00", msg: "Tray #247 scanned at QC station", type: "info" },
+      { t: "15:49:05", msg: "RX ← Lensometer: OD measured SPH -2.48 CYL -0.76 AX 180 ADD 1.98", type: "rx" },
+      { t: "15:49:06", msg: "OD tolerance check: SPH ±0.06 ✓ | CYL ±0.06 ✓ | AX ±1° ✓ | ADD ±0.06 ✓", type: "success" },
+      { t: "15:49:10", msg: "RX ← Lensometer: OS measured SPH -2.99 CYL -1.01 AX 005 ADD 2.01", type: "rx" },
+      { t: "15:49:11", msg: "OS tolerance check: SPH ±0.06 ✓ | CYL ±0.06 ✓ | AX ±1° ✓ | ADD ±0.06 ✓", type: "success" },
+      { t: "15:49:15", msg: "Cosmetic inspection: AR coating ✓ | No scratches ✓ | Edge quality ✓", type: "success" },
+      { t: "15:49:16", msg: "JOB PASSED QC — routing to Assembly", type: "success" },
+    ],
+  },
+  assemble: {
+    title: "Lenses Mounted in Frame",
+    device: null,
+    connection: "Manual Station",
+    omaPacket: null,
+    events: [
+      { t: "15:52:00", msg: "Tray #247 at Assembly station — Tech: Maria G.", type: "info" },
+      { t: "15:52:30", msg: "Frame: Ray-Ban RB5154 retrieved from frame stock", type: "info" },
+      { t: "15:53:00", msg: "OD lens inserted — alignment verified with PD ruler", type: "success" },
+      { t: "15:53:30", msg: "OS lens inserted — nylon cord threaded through groove", type: "success" },
+      { t: "15:54:00", msg: "Temple adjustment — standard fit", type: "info" },
+      { t: "15:54:15", msg: "Final PD measurement: 63.5mm ✓ | OC Height: 22mm ✓", type: "success" },
+      { t: "15:54:30", msg: "Assembly complete — cleaned and bagged — routing to Ship", type: "success" },
+    ],
+  },
+  ship: {
+    title: "Packaged and Shipped to Provider",
+    device: null,
+    connection: "Shipping Integration",
+    omaPacket: null,
+    events: [
+      { t: "15:56:00", msg: "Tray #247 at Shipping station", type: "info" },
+      { t: "15:56:05", msg: "Shipping label generated: UPS Next Day Air (Rush order)", type: "info" },
+      { t: "15:56:10", msg: "Tracking: 1Z999AA10123456784", type: "info" },
+      { t: "15:56:15", msg: "Packed with: Glasses, cleaning cloth, case, invoice #INV-5022", type: "info" },
+      { t: "15:56:20", msg: "Provider notified: Dr. Williams Eye Care — ETA: Tomorrow 10:30 AM", type: "success" },
+      { t: "15:56:25", msg: "JOB ORD-10247 COMPLETE ✓ — Total production time: 1hr 34min", type: "success" },
+    ],
+  },
+};
+
+function StageIllustration({ stageId }) {
+  const w = 280, h = 200;
+  const svgStyle = { borderRadius: 8, background: C.bg, display: "block", width: "100%", maxWidth: w, border: `1px solid ${C.border}` };
+
+  if (stageId === "intake") return (
+    <svg viewBox={`0 0 ${w} ${h}`} style={svgStyle}>
+      {/* Monitor */}
+      <rect x={80} y={20} width={120} height={85} rx={6} fill={C.bgElevated} stroke={C.borderLight} strokeWidth={1.5} />
+      <rect x={88} y={28} width={104} height={62} rx={3} fill={C.bgCard} />
+      {/* Screen content — form fields */}
+      <rect x={94} y={34} width={40} height={6} rx={2} fill={C.cyan} opacity={0.6} />
+      <rect x={94} y={44} width={90} height={5} rx={2} fill={C.border} />
+      <rect x={94} y={53} width={90} height={5} rx={2} fill={C.border} />
+      <rect x={94} y={62} width={60} height={5} rx={2} fill={C.border} />
+      <rect x={94} y={73} width={35} height={10} rx={3} fill={C.cyan} opacity={0.8} />
+      <text x={97} y={81} fill={C.bg} fontSize={6} fontFamily="monospace" fontWeight="bold">SUBMIT</text>
+      {/* Monitor stand */}
+      <rect x={125} y={105} width={30} height={8} rx={2} fill={C.bgElevated} stroke={C.borderLight} strokeWidth={1} />
+      <rect x={115} y={113} width={50} height={4} rx={2} fill={C.bgElevated} stroke={C.borderLight} strokeWidth={1} />
+      {/* Rx paper */}
+      <rect x={20} y={50} width={45} height={55} rx={3} fill="#1a2240" stroke={C.borderLight} strokeWidth={1} transform="rotate(-8,42,77)" />
+      <text x={26} y={68} fill={C.cyan} fontSize={7} fontFamily="monospace" transform="rotate(-8,42,77)">Rx</text>
+      <line x1={26} y1={73} x2={58} y2={73} stroke={C.textDim} strokeWidth={0.5} transform="rotate(-8,42,77)" />
+      <line x1={26} y1={79} x2={55} y2={79} stroke={C.textDim} strokeWidth={0.5} transform="rotate(-8,42,77)" />
+      <line x1={26} y1={85} x2={50} y2={85} stroke={C.textDim} strokeWidth={0.5} transform="rotate(-8,42,77)" />
+      {/* Arrow */}
+      <path d="M 65 75 L 80 60" stroke={C.amber} strokeWidth={1.5} fill="none" markerEnd="url(#arw)" />
+      <defs><marker id="arw" markerWidth={6} markerHeight={6} refX={5} refY={3} orient="auto"><path d="M0,0 L6,3 L0,6" fill={C.amber} /></marker></defs>
+      {/* Label */}
+      <text x={w/2} y={145} fill={C.textMid} fontSize={10} fontFamily="monospace" textAnchor="middle">Provider Portal → LMS</text>
+      <text x={w/2} y={160} fill={C.textDim} fontSize={8} fontFamily="monospace" textAnchor="middle">Rx validated, blank allocated, job created</text>
+      {/* Tray icon */}
+      <rect x={115} y={168} width={50} height={18} rx={4} fill={C.cyanDim} stroke={C.cyan} strokeWidth={1} />
+      <text x={140} y={180} fill={C.cyan} fontSize={8} fontFamily="monospace" textAnchor="middle">TRAY 247</text>
+    </svg>
+  );
+
+  if (stageId === "trace") return (
+    <svg viewBox={`0 0 ${w} ${h}`} style={svgStyle}>
+      {/* Tracer machine body */}
+      <rect x={30} y={30} width={100} height={80} rx={8} fill={C.bgElevated} stroke={C.borderLight} strokeWidth={1.5} />
+      <rect x={38} y={38} width={50} height={35} rx={3} fill={C.bgCard} />
+      {/* Lens shape on tracer screen */}
+      <ellipse cx={63} cy={55} rx={18} ry={11} fill="none" stroke={C.cyan} strokeWidth={1.5} />
+      <circle cx={63} cy={55} r={2} fill={C.amber} />
+      {/* Probe arm */}
+      <rect x={95} y={45} width={30} height={6} rx={2} fill={C.borderLight} />
+      <circle cx={128} cy={48} r={4} fill={C.amber} stroke={C.borderLight} strokeWidth={1} />
+      {/* Frame in cradle */}
+      <rect x={150} y={40} width={100} height={50} rx={6} fill={C.bgCard} stroke={C.borderLight} strokeWidth={1} />
+      <ellipse cx={180} cy={65} rx={22} ry={14} fill="none" stroke={C.cyan} strokeWidth={1.5} strokeDasharray="2,1" />
+      <ellipse cx={220} cy={65} rx={22} ry={14} fill="none" stroke={C.cyan} strokeWidth={1.5} strokeDasharray="2,1" />
+      <line x1={202} y1={55} x2={198} y2={75} stroke={C.borderLight} strokeWidth={2} />
+      {/* Serial cable */}
+      <path d="M 80 110 C 80 130, 140 130, 140 140" stroke={C.amber} strokeWidth={1.5} fill="none" strokeDasharray="4,2" />
+      <text x={85} y={138} fill={C.amber} fontSize={7} fontFamily="monospace">RS-232</text>
+      {/* Output data */}
+      <text x={w/2} y={160} fill={C.textMid} fontSize={9} fontFamily="monospace" textAnchor="middle">400-point radial scan captured</text>
+      <text x={w/2} y={174} fill={C.cyan} fontSize={8} fontFamily="monospace" textAnchor="middle">HBOX=55.16mm  VBOX=30.69mm  DBL=15.49mm</text>
+      {/* Scanning animation indicator */}
+      <circle cx={128} cy={48} r={7} fill="none" stroke={C.amber} strokeWidth={0.5} opacity={0.5}>
+        <animate attributeName="r" from="4" to="12" dur="1.5s" repeatCount="indefinite" />
+        <animate attributeName="opacity" from="0.6" to="0" dur="1.5s" repeatCount="indefinite" />
+      </circle>
+    </svg>
+  );
+
+  if (stageId === "design") return (
+    <svg viewBox={`0 0 ${w} ${h}`} style={svgStyle}>
+      {/* Server rack */}
+      <rect x={20} y={20} width={70} height={100} rx={6} fill={C.bgElevated} stroke={C.borderLight} strokeWidth={1.5} />
+      {[0,1,2,3].map(i => <rect key={i} x={28} y={30+i*22} width={54} height={16} rx={2} fill={C.bgCard} stroke={C.border} strokeWidth={0.5} />)}
+      {[0,1,2,3].map(i => <circle key={`led${i}`} cx={74} cy={38+i*22} r={2.5} fill={i<3?C.green:C.amber}>
+        <animate attributeName="opacity" from="1" to="0.3" dur={`${0.5+i*0.2}s`} repeatCount="indefinite" />
+      </circle>)}
+      <text x={55} y={135} fill={C.textDim} fontSize={7} fontFamily="monospace" textAnchor="middle">IOT Server</text>
+      {/* Arrow to lens */}
+      <path d="M 95 70 L 125 70" stroke={C.cyan} strokeWidth={1.5} fill="none" markerEnd="url(#arw2)" />
+      <defs><marker id="arw2" markerWidth={6} markerHeight={6} refX={5} refY={3} orient="auto"><path d="M0,0 L6,3 L0,6" fill={C.cyan} /></marker></defs>
+      {/* Lens cross-section */}
+      <path d="M 148 30 Q 135 70 148 115" fill="none" stroke={C.cyan} strokeWidth={2} />
+      <path d="M 185 30 Q 200 50 195 70 Q 190 90 188 115" fill="none" stroke={C.amber} strokeWidth={2} />
+      {/* Progressive corridor */}
+      <rect x={158} y={45} width={14} height={55} rx={3} fill={C.violetDim} opacity={0.5} />
+      {/* Thickness line */}
+      <line x1={151} y1={70} x2={193} y2={70} stroke={C.textDim} strokeWidth={0.8} strokeDasharray="2,2" />
+      {/* Point cloud dots */}
+      {Array.from({length: 20}, (_, i) => {
+        const x = 155 + (i % 5) * 8;
+        const y = 38 + Math.floor(i / 5) * 18;
+        return <circle key={`pt${i}`} cx={x} cy={y} r={1.2} fill={C.cyan} opacity={0.4} />;
+      })}
+      {/* Labels */}
+      <text x={215} y={40} fill={C.cyan} fontSize={8} fontFamily="monospace">Front</text>
+      <text x={215} y={52} fill={C.amber} fontSize={8} fontFamily="monospace">Back</text>
+      <text x={215} y={64} fill={C.violet} fontSize={8} fontFamily="monospace">Corridor</text>
+      <text x={w/2} y={155} fill={C.textMid} fontSize={9} fontFamily="monospace" textAnchor="middle">12,000-point freeform surface</text>
+      <text x={w/2} y={169} fill={C.textDim} fontSize={8} fontFamily="monospace" textAnchor="middle">Progressive design with compensated powers</text>
+    </svg>
+  );
+
+  if (stageId === "surface") return (
+    <svg viewBox={`0 0 ${w} ${h}`} style={svgStyle}>
+      {/* Machine body */}
+      <rect x={40} y={20} width={200} height={100} rx={10} fill={C.bgElevated} stroke={C.borderLight} strokeWidth={1.5} />
+      {/* Lens blank (circle) */}
+      <circle cx={120} cy={70} r={30} fill={C.bgCard} stroke={C.cyan} strokeWidth={1.5} />
+      <circle cx={120} cy={70} r={20} fill="none" stroke={C.cyanDim} strokeWidth={0.5} />
+      <circle cx={120} cy={70} r={10} fill="none" stroke={C.cyanDim} strokeWidth={0.5} />
+      {/* Diamond tool */}
+      <rect x={175} y={52} width={40} height={8} rx={2} fill={C.borderLight} />
+      <polygon points="175,52 175,60 168,56" fill={C.amber} />
+      {/* Cutting arc */}
+      <path d="M 168 56 Q 150 40 130 45" stroke={C.amber} strokeWidth={1} fill="none" strokeDasharray="3,2">
+        <animate attributeName="stroke-dashoffset" from="0" to="-10" dur="0.8s" repeatCount="indefinite" />
+      </path>
+      {/* Spray coolant */}
+      {[0,1,2].map(i => <circle key={`sp${i}`} cx={155-i*8} cy={48+i*3} r={1.5} fill={C.blue} opacity={0.4}>
+        <animate attributeName="opacity" from="0.6" to="0" dur={`${0.6+i*0.2}s`} repeatCount="indefinite" />
+      </circle>)}
+      {/* Control panel */}
+      <rect x={50} y={28} width={45} height={30} rx={3} fill={C.bgCard} stroke={C.border} strokeWidth={0.5} />
+      <rect x={54} y={32} width={37} height={18} rx={2} fill="#0a1020" />
+      <text x={60} y={43} fill={C.green} fontSize={7} fontFamily="monospace">RUN</text>
+      <text x={60} y={51} fill={C.amber} fontSize={6} fontFamily="monospace">67%</text>
+      {/* Label */}
+      <text x={w/2} y={145} fill={C.textMid} fontSize={9} fontFamily="monospace" textAnchor="middle">Diamond tool cuts freeform surface</text>
+      <text x={w/2} y={159} fill={C.textDim} fontSize={8} fontFamily="monospace" textAnchor="middle">Satisloh VFT-orbit 2 Generator</text>
+      <text x={w/2} y={173} fill={C.amber} fontSize={8} fontFamily="monospace" textAnchor="middle">~3 min per lens × 2 lenses</text>
+    </svg>
+  );
+
+  if (stageId === "polish") return (
+    <svg viewBox={`0 0 ${w} ${h}`} style={svgStyle}>
+      {/* Machine body */}
+      <rect x={50} y={25} width={180} height={90} rx={10} fill={C.bgElevated} stroke={C.borderLight} strokeWidth={1.5} />
+      {/* Spinning pad */}
+      <ellipse cx={140} cy={70} rx={45} ry={20} fill={C.bgCard} stroke={C.borderLight} strokeWidth={1} />
+      <ellipse cx={140} cy={70} rx={35} ry={15} fill="none" stroke={C.textDim} strokeWidth={0.5} strokeDasharray="4,2">
+        <animateTransform attributeName="transform" type="rotate" from="0 140 70" to="360 140 70" dur="3s" repeatCount="indefinite" />
+      </ellipse>
+      {/* Lens on pad */}
+      <circle cx={140} cy={65} r={22} fill={C.cyanDim} stroke={C.cyan} strokeWidth={1.5} opacity={0.8} />
+      {/* Sparkle effects */}
+      {[0,1,2,3,4].map(i => {
+        const angle = (i/5) * Math.PI * 2;
+        const x = 140 + Math.cos(angle) * 28;
+        const y = 65 + Math.sin(angle) * 14;
+        return <circle key={`sp${i}`} cx={x} cy={y} r={1.5} fill="#fff" opacity={0.6}>
+          <animate attributeName="opacity" from="0.8" to="0" dur={`${0.8+i*0.15}s`} repeatCount="indefinite" />
+        </circle>;
+      })}
+      {/* Label */}
+      <text x={w/2} y={140} fill={C.textMid} fontSize={9} fontFamily="monospace" textAnchor="middle">Soft polishing pad removes tool marks</text>
+      <text x={w/2} y={154} fill={C.textDim} fontSize={8} fontFamily="monospace" textAnchor="middle">Satisloh SP-3000 Polisher</text>
+      <text x={w/2} y={168} fill={C.green} fontSize={8} fontFamily="monospace" textAnchor="middle">Surface clarity: optical grade</text>
+    </svg>
+  );
+
+  if (stageId === "coat") return (
+    <svg viewBox={`0 0 ${w} ${h}`} style={svgStyle}>
+      {/* Vacuum chamber */}
+      <rect x={60} y={15} width={160} height={100} rx={12} fill={C.bgElevated} stroke={C.borderLight} strokeWidth={2} />
+      <rect x={70} y={22} width={140} height={86} rx={8} fill={C.bgCard} />
+      {/* Lens rack inside */}
+      <line x1={90} y1={90} x2={90} y2={40} stroke={C.borderLight} strokeWidth={2} />
+      <line x1={140} y1={90} x2={140} y2={40} stroke={C.borderLight} strokeWidth={2} />
+      <line x1={190} y1={90} x2={190} y2={40} stroke={C.borderLight} strokeWidth={2} />
+      {/* Lenses on rack */}
+      <circle cx={90} cy={55} r={10} fill="none" stroke={C.cyan} strokeWidth={1.5} />
+      <circle cx={140} cy={55} r={10} fill="none" stroke={C.cyan} strokeWidth={1.5} />
+      <circle cx={190} cy={55} r={10} fill="none" stroke={C.cyan} strokeWidth={1.5} />
+      {/* Coating vapor */}
+      {[0,1,2,3,4,5].map(i => {
+        const x = 80 + i * 24;
+        return <line key={`vp${i}`} x1={x} y1={90} x2={x} y2={70} stroke={C.violet} strokeWidth={1} opacity={0.3}>
+          <animate attributeName="y2" from="90" to="45" dur={`${1.5+i*0.2}s`} repeatCount="indefinite" />
+          <animate attributeName="opacity" from="0.5" to="0.05" dur={`${1.5+i*0.2}s`} repeatCount="indefinite" />
+        </line>;
+      })}
+      {/* Coating layers legend */}
+      {["Hard Coat", "UV Filter", "AR Layer 1-6", "Smudge Resist"].map((lbl, i) => (
+        <g key={lbl}>
+          <rect x={75} y={125+i*14} width={8} height={8} rx={1.5}
+            fill={[C.borderLight, C.blue, C.violet, C.green][i]} opacity={0.8} />
+          <text x={88} y={132+i*14} fill={C.textMid} fontSize={8} fontFamily="monospace">{lbl}</text>
+        </g>
+      ))}
+      <text x={190} y={137} fill={C.textDim} fontSize={8} fontFamily="monospace">Vacuum: 10⁻⁵ mbar</text>
+      <text x={190} y={151} fill={C.amber} fontSize={8} fontFamily="monospace">Cycle: ~60 min</text>
+      <text x={190} y={165} fill={C.textDim} fontSize={8} fontFamily="monospace">Crizal Sapphire UV</text>
+    </svg>
+  );
+
+  if (stageId === "edge") return (
+    <svg viewBox={`0 0 ${w} ${h}`} style={svgStyle}>
+      {/* Edger body */}
+      <rect x={30} y={20} width={220} height={95} rx={10} fill={C.bgElevated} stroke={C.borderLight} strokeWidth={1.5} />
+      {/* Diamond wheel */}
+      <circle cx={100} cy={68} r={25} fill={C.bgCard} stroke={C.borderLight} strokeWidth={2} />
+      <circle cx={100} cy={68} r={18} fill="none" stroke={C.textDim} strokeWidth={0.5} />
+      <circle cx={100} cy={68} r={5} fill={C.borderLight} />
+      {/* Spinning animation */}
+      <circle cx={100} cy={68} r={22} fill="none" stroke={C.amber} strokeWidth={1} strokeDasharray="6,8">
+        <animateTransform attributeName="transform" type="rotate" from="0 100 68" to="360 100 68" dur="0.8s" repeatCount="indefinite" />
+      </circle>
+      {/* Lens being cut */}
+      <ellipse cx={180} cy={65} rx={30} ry={18} fill={C.cyanDim} stroke={C.cyan} strokeWidth={1.5} />
+      {/* Contact point sparks */}
+      <circle cx={127} cy={62} r={2} fill={C.amber}>
+        <animate attributeName="opacity" from="1" to="0" dur="0.3s" repeatCount="indefinite" />
+      </circle>
+      {[0,1,2].map(i => <circle key={`sk${i}`} cx={130+i*4} cy={58-i*3} r={1} fill={C.amber} opacity={0.5}>
+        <animate attributeName="opacity" from="0.7" to="0" dur={`${0.4+i*0.1}s`} repeatCount="indefinite" />
+      </circle>)}
+      {/* Trace shape overlay on lens */}
+      <ellipse cx={180} cy={65} rx={25} ry={15} fill="none" stroke={C.amber} strokeWidth={0.8} strokeDasharray="2,2" />
+      {/* Label */}
+      <text x={w/2} y={140} fill={C.textMid} fontSize={9} fontFamily="monospace" textAnchor="middle">Diamond wheel cuts lens to frame shape</text>
+      <text x={w/2} y={154} fill={C.textDim} fontSize={8} fontFamily="monospace" textAnchor="middle">Briot Alta SX — groove edge for nylon</text>
+      <text x={w/2} y={168} fill={C.cyan} fontSize={8} fontFamily="monospace" textAnchor="middle">Using 400-point trace data from Step 2</text>
+    </svg>
+  );
+
+  if (stageId === "qc") return (
+    <svg viewBox={`0 0 ${w} ${h}`} style={svgStyle}>
+      {/* Lensometer body */}
+      <rect x={80} y={20} width={120} height={95} rx={8} fill={C.bgElevated} stroke={C.borderLight} strokeWidth={1.5} />
+      {/* Screen */}
+      <rect x={90} y={28} width={65} height={45} rx={4} fill={C.bgCard} />
+      {/* Crosshair on screen */}
+      <line x1={122} y1={35} x2={122} y2={66} stroke={C.cyan} strokeWidth={0.5} opacity={0.5} />
+      <line x1={96} y1={50} x2={149} y2={50} stroke={C.cyan} strokeWidth={0.5} opacity={0.5} />
+      <circle cx={122} cy={50} r={8} fill="none" stroke={C.green} strokeWidth={1.5} />
+      <circle cx={122} cy={50} r={3} fill={C.green} opacity={0.6} />
+      {/* Measurement readout */}
+      <text x={96} y={82} fill={C.green} fontSize={7} fontFamily="monospace">SPH -2.48 ✓</text>
+      <text x={96} y={92} fill={C.green} fontSize={7} fontFamily="monospace">CYL -0.76 ✓</text>
+      <text x={96} y={102} fill={C.green} fontSize={7} fontFamily="monospace">AX  180   ✓</text>
+      {/* Lens slot */}
+      <rect x={165} y={45} width={30} height={40} rx={4} fill={C.bgCard} stroke={C.borderLight} strokeWidth={1} />
+      <circle cx={180} cy={65} r={12} fill={C.cyanDim} stroke={C.cyan} strokeWidth={1} />
+      {/* Pass stamp */}
+      <rect x={85} y={128} width={110} height={30} rx={6} fill={C.greenDim} stroke={C.green} strokeWidth={1.5} />
+      <text x={140} y={140} fill={C.green} fontSize={10} fontFamily="monospace" textAnchor="middle" fontWeight="bold">✓ QC PASSED</text>
+      <text x={140} y={152} fill={C.green} fontSize={7} fontFamily="monospace" textAnchor="middle" opacity={0.7}>All tolerances within spec</text>
+      <text x={w/2} y={178} fill={C.textDim} fontSize={8} fontFamily="monospace" textAnchor="middle">ANSI Z80.1 tolerance ±0.06D power, ±2° axis</text>
+    </svg>
+  );
+
+  if (stageId === "assemble") return (
+    <svg viewBox={`0 0 ${w} ${h}`} style={svgStyle}>
+      {/* Workbench surface */}
+      <rect x={20} y={100} width={240} height={8} rx={2} fill={C.bgElevated} stroke={C.borderLight} strokeWidth={1} />
+      {/* Frame — complete glasses */}
+      <g transform="translate(140,65)">
+        {/* Left lens */}
+        <ellipse cx={-30} cy={0} rx={28} ry={18} fill={C.cyanDim} stroke={C.cyan} strokeWidth={1.5} />
+        {/* Right lens */}
+        <ellipse cx={30} cy={0} rx={28} ry={18} fill={C.cyanDim} stroke={C.cyan} strokeWidth={1.5} />
+        {/* Bridge */}
+        <path d="M -3 -2 Q 0 -8 3 -2" stroke={C.borderLight} strokeWidth={2.5} fill="none" />
+        {/* Temples */}
+        <line x1={-58} y1={-4} x2={-90} y2={-10} stroke={C.borderLight} strokeWidth={2.5} strokeLinecap="round" />
+        <line x1={58} y1={-4} x2={90} y2={-10} stroke={C.borderLight} strokeWidth={2.5} strokeLinecap="round" />
+        {/* Nose pads */}
+        <circle cx={-8} cy={8} r={2.5} fill={C.borderLight} />
+        <circle cx={8} cy={8} r={2.5} fill={C.borderLight} />
+      </g>
+      {/* Tool */}
+      <rect x={30} y={70} width={4} height={30} rx={1} fill={C.amber} transform="rotate(-30,32,85)" />
+      <circle cx={30} cy={68} r={3} fill={C.amber} transform="rotate(-30,32,85)" />
+      {/* PD ruler below */}
+      <rect x={75} y={112} width={130} height={12} rx={2} fill={C.bgCard} stroke={C.borderLight} strokeWidth={0.5} />
+      {[0,1,2,3,4,5,6,7,8,9,10,11,12,13].map(i =>
+        <line key={`tick${i}`} x1={80+i*9} y1={112} x2={80+i*9} y2={i%2===0?120:117} stroke={C.textDim} strokeWidth={0.5} />
+      )}
+      <text x={140} y={122} fill={C.textDim} fontSize={5} fontFamily="monospace" textAnchor="middle">PD: 63.5mm</text>
+      {/* Label */}
+      <text x={w/2} y={145} fill={C.textMid} fontSize={9} fontFamily="monospace" textAnchor="middle">Lenses mounted, temples adjusted</text>
+      <text x={w/2} y={159} fill={C.textDim} fontSize={8} fontFamily="monospace" textAnchor="middle">Final PD & OC height verified</text>
+      <text x={w/2} y={173} fill={C.green} fontSize={8} fontFamily="monospace" textAnchor="middle">Ray-Ban RB5154 — Assembly complete</text>
+    </svg>
+  );
+
+  if (stageId === "ship") return (
+    <svg viewBox={`0 0 ${w} ${h}`} style={svgStyle}>
+      {/* Shipping box */}
+      <rect x={80} y={25} width={120} height={80} rx={6} fill="#1c2a20" stroke={C.green} strokeWidth={1.5} />
+      <line x1={140} y1={25} x2={140} y2={105} stroke={C.green} strokeWidth={0.5} strokeDasharray="3,2" />
+      <line x1={80} y1={55} x2={200} y2={55} stroke={C.green} strokeWidth={0.5} strokeDasharray="3,2" />
+      {/* Shipping label */}
+      <rect x={92} y={62} width={55} height={35} rx={3} fill="#fff" opacity={0.9} />
+      <rect x={96} y={66} width={30} height={4} rx={1} fill={C.bg} opacity={0.5} />
+      <rect x={96} y={73} width={45} height={3} rx={1} fill={C.bg} opacity={0.3} />
+      <rect x={96} y={78} width={40} height={3} rx={1} fill={C.bg} opacity={0.3} />
+      <rect x={96} y={83} width={25} height={3} rx={1} fill={C.bg} opacity={0.3} />
+      {/* Barcode */}
+      {Array.from({length:12}, (_, i) =>
+        <rect key={`bc${i}`} x={96+i*3.5} y={88} width={i%3===0?2:1} height={6} fill={C.bg} opacity={0.7} />
+      )}
+      {/* Glasses peeking out */}
+      <ellipse cx={170} cy={42} rx={15} ry={9} fill="none" stroke={C.cyan} strokeWidth={1} opacity={0.5} />
+      <ellipse cx={195} cy={42} rx={15} ry={9} fill="none" stroke={C.cyan} strokeWidth={1} opacity={0.5} />
+      {/* Truck icon */}
+      <rect x={30} y={115} width={45} height={28} rx={4} fill={C.bgElevated} stroke={C.amber} strokeWidth={1.5} />
+      <rect x={15} y={125} width={18} height={18} rx={3} fill={C.bgElevated} stroke={C.amber} strokeWidth={1.5} />
+      <circle cx={28} cy={148} r={5} fill={C.bgCard} stroke={C.amber} strokeWidth={1.5} />
+      <circle cx={60} cy={148} r={5} fill={C.bgCard} stroke={C.amber} strokeWidth={1.5} />
+      {/* Arrow */}
+      <path d="M 80 135 L 105 135" stroke={C.green} strokeWidth={1.5} markerEnd="url(#arw3)" />
+      <defs><marker id="arw3" markerWidth={6} markerHeight={6} refX={5} refY={3} orient="auto"><path d="M0,0 L6,3 L0,6" fill={C.green} /></marker></defs>
+      {/* Delivery info */}
+      <text x={180} y={125} fill={C.amber} fontSize={8} fontFamily="monospace">UPS Next Day Air</text>
+      <text x={180} y={137} fill={C.textMid} fontSize={7} fontFamily="monospace">1Z999AA10123456784</text>
+      <text x={180} y={149} fill={C.green} fontSize={8} fontFamily="monospace">ETA: Tomorrow 10:30am</text>
+      <text x={w/2} y={175} fill={C.textMid} fontSize={9} fontFamily="monospace" textAnchor="middle">Dr. Williams Eye Care notified</text>
+      <text x={w/2} y={189} fill={C.green} fontSize={9} fontFamily="monospace" textAnchor="middle" fontWeight="bold">JOB COMPLETE ✓</text>
+    </svg>
+  );
+
+  // Fallback
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} style={svgStyle}>
+      <text x={w/2} y={h/2} fill={C.textDim} fontSize={14} textAnchor="middle">{STAGES.find(s=>s.id===stageId)?.icon}</text>
+      <text x={w/2} y={h/2+20} fill={C.textDim} fontSize={10} fontFamily="monospace" textAnchor="middle">{STAGES.find(s=>s.id===stageId)?.label}</text>
+    </svg>
+  );
+}
+
+function OpticalLMSDemo() {
+  const [currentStage, setCurrentStage] = useState(0);
+  const [eventIndex, setEventIndex] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [showOMA, setShowOMA] = useState(false);
+
+  const stage = STAGES[currentStage];
+  const data = STAGE_DATA[stage.id];
+  const visibleEvents = data.events.slice(0, eventIndex);
+
+  useEffect(() => {
+    if (!isPlaying || eventIndex >= data.events.length) {
+      if (isPlaying && eventIndex >= data.events.length) setIsPlaying(false);
+      return;
+    }
+    const id = setTimeout(() => setEventIndex(prev => prev + 1), 700);
+    return () => clearTimeout(id);
+  }, [isPlaying, eventIndex, data.events.length]);
+
+  const goToStage = (idx) => {
+    setCurrentStage(idx);
+    setEventIndex(0);
+    setIsPlaying(false);
+    setShowOMA(false);
+  };
+
+  const playStage = () => {
+    setEventIndex(0);
+    setIsPlaying(true);
+  };
+
+  const showAll = () => {
+    setEventIndex(data.events.length);
+    setIsPlaying(false);
+  };
+
+  const nextStage = () => {
+    if (currentStage < STAGES.length - 1) goToStage(currentStage + 1);
+  };
+
+  const getEventColor = (type) => {
+    if (type === "tx") return C.blue;
+    if (type === "rx") return C.violet;
+    if (type === "success") return C.green;
+    if (type === "error") return C.red;
+    return C.textMid;
+  };
+
+  const getEventIcon = (type) => {
+    if (type === "tx") return "▲";
+    if (type === "rx") return "▼";
+    if (type === "success") return "✓";
+    if (type === "error") return "✗";
+    return "•";
+  };
+
+  return (
+    <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "'IBM Plex Sans', -apple-system, sans-serif" }}>
+
+      {/* Top Header */}
+      <div style={{ borderBottom: `1px solid ${C.border}`, padding: "14px 24px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <div style={{ width: 34, height: 34, borderRadius: 8, background: `linear-gradient(135deg, ${C.cyan}, ${C.blue})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 800, color: C.bg }}>O</div>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 700, letterSpacing: "-0.02em" }}>OptiLMS <span style={{ color: C.cyan }}>Demo</span></div>
+            <div style={{ fontSize: 10, color: C.textDim, letterSpacing: "0.05em" }}>FULL JOB LIFECYCLE SIMULATION</div>
+          </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, fontSize: 12, color: C.textMid }}>
+          <span style={{ fontFamily: "'IBM Plex Mono', monospace", color: C.cyan }}>{ORDER.id}</span>
+          <span>•</span>
+          <span>{ORDER.patient}</span>
+          <span>•</span>
+          <span style={{ color: C.red, fontWeight: 600 }}>RUSH</span>
+        </div>
+      </div>
+
+      {/* Stage Pipeline */}
+      <div style={{ padding: "16px 24px", borderBottom: `1px solid ${C.border}`, overflowX: "auto" }}>
+        <div style={{ display: "flex", gap: 0, minWidth: 900 }}>
+          {STAGES.map((s, i) => {
+            const isActive = i === currentStage;
+            const isPast = i < currentStage;
+            const isFuture = i > currentStage;
+            return (
+              <div key={s.id} onClick={() => goToStage(i)} style={{ flex: 1, cursor: "pointer", position: "relative" }}>
+                {/* Connector line */}
+                {i > 0 && (
+                  <div style={{
+                    position: "absolute", top: 15, left: -2, right: "50%", height: 2,
+                    background: isPast || isActive ? C.cyan : C.border,
+                    transition: "background 0.3s"
+                  }} />
+                )}
+                {i < STAGES.length - 1 && (
+                  <div style={{
+                    position: "absolute", top: 15, left: "50%", right: -2, height: 2,
+                    background: isPast ? C.cyan : C.border,
+                    transition: "background 0.3s"
+                  }} />
+                )}
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", position: "relative", zIndex: 1 }}>
+                  <div style={{
+                    width: 30, height: 30, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 14,
+                    background: isActive ? C.cyanDim : isPast ? C.bgElevated : C.bg,
+                    border: `2px solid ${isActive ? C.cyan : isPast ? C.cyan : C.border}`,
+                    boxShadow: isActive ? `0 0 16px ${C.cyanGlow}` : "none",
+                    transition: "all 0.3s"
+                  }}>
+                    {isPast ? "✓" : s.icon}
+                  </div>
+                  <div style={{
+                    marginTop: 6, fontSize: 10, fontWeight: isActive ? 700 : 500, textAlign: "center",
+                    color: isActive ? C.cyan : isPast ? C.textMid : C.textDim,
+                    transition: "color 0.3s"
+                  }}>
+                    {s.label}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div style={{ display: "flex", gap: 0, minHeight: "calc(100vh - 140px)" }}>
+        {/* Left Panel — Order Info */}
+        <div style={{ width: 300, borderRight: `1px solid ${C.border}`, padding: 20, flexShrink: 0, overflowY: "auto" }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: C.textDim, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 14 }}>Order Details</div>
+
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 10, color: C.textDim, textTransform: "uppercase", marginBottom: 3 }}>Job / Patient</div>
+            <div style={{ fontSize: 14, fontWeight: 600, fontFamily: "'IBM Plex Mono', monospace", color: C.cyan }}>{ORDER.id}</div>
+            <div style={{ fontSize: 13, color: C.text }}>{ORDER.patient}</div>
+            <div style={{ fontSize: 11, color: C.textMid }}>{ORDER.provider}</div>
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 10, color: C.textDim, textTransform: "uppercase", marginBottom: 6 }}>Prescription</div>
+            <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 8, padding: 10, fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, lineHeight: 1.8 }}>
+              <div style={{ color: C.textDim, marginBottom: 2 }}>{"     SPH    CYL   AX   ADD"}</div>
+              <div><span style={{ color: C.blue }}>OD</span> <span style={{ color: C.text }}>{" -2.50  -0.75  180  +2.00"}</span></div>
+              <div><span style={{ color: C.violet }}>OS</span> <span style={{ color: C.text }}>{" -3.00  -1.00  005  +2.00"}</span></div>
+              <div style={{ borderTop: `1px solid ${C.border}`, marginTop: 6, paddingTop: 6 }}>
+                <div><span style={{ color: C.textDim }}>PD:</span> <span style={{ color: C.text }}>31.5 / 32.0</span></div>
+                <div><span style={{ color: C.textDim }}>OC:</span> <span style={{ color: C.text }}>22.0 / 22.0</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 10, color: C.textDim, textTransform: "uppercase", marginBottom: 3 }}>Lens</div>
+            <div style={{ fontSize: 12, color: C.text }}>{ORDER.lens}</div>
+            <div style={{ fontSize: 11, color: C.textMid }}>{ORDER.material}</div>
+          </div>
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 10, color: C.textDim, textTransform: "uppercase", marginBottom: 3 }}>Coating</div>
+            <div style={{ fontSize: 12, color: C.text }}>{ORDER.coating}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 10, color: C.textDim, textTransform: "uppercase", marginBottom: 3 }}>Frame</div>
+            <div style={{ fontSize: 12, color: C.text }}>{ORDER.frame}</div>
+          </div>
+
+          {/* Stage Illustration */}
+          <div style={{ marginTop: 20 }}>
+            <div style={{ fontSize: 10, color: C.textDim, textTransform: "uppercase", marginBottom: 8 }}>
+              {stage.label} — Visual
+            </div>
+            <StageIllustration stageId={stage.id} />
+          </div>
+        </div>
+
+        {/* Center Panel — Stage Activity */}
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+          {/* Stage Header */}
+          <div style={{ padding: "18px 24px", borderBottom: `1px solid ${C.border}`, background: C.bgCard }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+              <div>
+                <div style={{ fontSize: 11, color: C.textDim, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>
+                  Stage {currentStage + 1} of {STAGES.length}
+                </div>
+                <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: "-0.02em" }}>
+                  {stage.icon} {data.title}
+                </div>
+                {data.device && (
+                  <div style={{ marginTop: 6, display: "flex", gap: 16, fontSize: 12, color: C.textMid }}>
+                    <span>Device: <span style={{ color: C.amber, fontWeight: 600 }}>{data.device}</span></span>
+                    <span>Connection: <span style={{ fontFamily: "'IBM Plex Mono', monospace", color: C.text }}>{data.connection}</span></span>
+                  </div>
+                )}
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={playStage} style={{
+                  padding: "8px 18px", borderRadius: 6, border: `1px solid ${C.cyan}44`, background: C.cyanDim,
+                  color: C.cyan, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit"
+                }}>
+                  ▶ Play
+                </button>
+                <button onClick={showAll} style={{
+                  padding: "8px 18px", borderRadius: 6, border: `1px solid ${C.border}`, background: C.bgElevated,
+                  color: C.textMid, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit"
+                }}>
+                  Show All
+                </button>
+                {currentStage < STAGES.length - 1 && (
+                  <button onClick={nextStage} style={{
+                    padding: "8px 18px", borderRadius: 6, border: `1px solid ${C.amber}44`, background: C.amberDim,
+                    color: C.amber, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit"
+                  }}>
+                    Next Stage →
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Description */}
+          <div style={{ padding: "12px 24px", borderBottom: `1px solid ${C.border}`, fontSize: 13, color: C.textMid, lineHeight: 1.6 }}>
+            {data.detail || `The ${stage.label.toLowerCase()} stage processes the job through the ${data.device || 'workstation'}.`}
+          </div>
+
+          {/* Event Log */}
+          <div style={{ flex: 1, overflowY: "auto", padding: "0" }}>
+            {visibleEvents.map((ev, i) => (
+              <div key={i} style={{
+                padding: "10px 24px", borderBottom: `1px solid ${C.border}06`,
+                display: "flex", gap: 14, alignItems: "flex-start",
+                animation: "fadeIn 0.3s ease-out",
+                background: i === visibleEvents.length - 1 ? `${getEventColor(ev.type)}06` : "transparent"
+              }}>
+                <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: C.textDim, whiteSpace: "nowrap", minWidth: 65, paddingTop: 1 }}>{ev.t}</span>
+                <span style={{ color: getEventColor(ev.type), fontWeight: 700, fontSize: 13, minWidth: 14, paddingTop: 1 }}>{getEventIcon(ev.type)}</span>
+                <span style={{ fontSize: 12, color: C.text, lineHeight: 1.5, fontFamily: ev.type === "tx" || ev.type === "rx" ? "'IBM Plex Mono', monospace" : "inherit" }}>{ev.msg}</span>
+              </div>
+            ))}
+            {visibleEvents.length === 0 && (
+              <div style={{ padding: 60, textAlign: "center", color: C.textDim }}>
+                <div style={{ fontSize: 32, marginBottom: 12 }}>{stage.icon}</div>
+                <div style={{ fontSize: 14 }}>Press <span style={{ color: C.cyan, fontWeight: 600 }}>▶ Play</span> to simulate this stage</div>
+                <div style={{ fontSize: 12, marginTop: 4 }}>or <span style={{ color: C.textMid }}>Show All</span> to see all events at once</div>
+              </div>
+            )}
+            {isPlaying && eventIndex < data.events.length && (
+              <div style={{ padding: "12px 24px", display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 8, height: 8, borderRadius: "50%", background: C.cyan, animation: "pulse 1s infinite" }} />
+                <span style={{ fontSize: 12, color: C.textDim }}>Processing...</span>
+              </div>
+            )}
+            {!isPlaying && eventIndex >= data.events.length && eventIndex > 0 && currentStage < STAGES.length - 1 && (
+              <div style={{ padding: "16px 24px" }}>
+                <button onClick={nextStage} style={{
+                  padding: "12px 24px", borderRadius: 8, border: "none",
+                  background: `linear-gradient(135deg, ${C.cyan}, ${C.blue})`,
+                  color: C.bg, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+                  boxShadow: `0 4px 20px ${C.cyanGlow}`
+                }}>
+                  Continue to {STAGES[currentStage + 1].icon} {STAGES[currentStage + 1].label} →
+                </button>
+              </div>
+            )}
+            {!isPlaying && eventIndex >= data.events.length && currentStage === STAGES.length - 1 && eventIndex > 0 && (
+              <div style={{ padding: "24px", textAlign: "center" }}>
+                <div style={{ fontSize: 48, marginBottom: 12 }}>🎉</div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: C.green }}>Job Complete!</div>
+                <div style={{ fontSize: 13, color: C.textMid, marginTop: 6 }}>ORD-10247 processed through all 10 stages in 1hr 34min</div>
+                <button onClick={() => goToStage(0)} style={{
+                  marginTop: 16, padding: "10px 24px", borderRadius: 8, border: `1px solid ${C.cyan}44`,
+                  background: C.cyanDim, color: C.cyan, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit"
+                }}>
+                  ↺ Replay from Start
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Right Panel — OMA Packet */}
+        {data.omaPacket && (
+          <div style={{ width: 340, borderLeft: `1px solid ${C.border}`, display: "flex", flexDirection: "column", flexShrink: 0 }}>
+            <div style={{ padding: "14px 16px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: C.textDim, textTransform: "uppercase", letterSpacing: "0.06em" }}>OMA/DCS Packet</div>
+              <button onClick={() => setShowOMA(!showOMA)} style={{
+                padding: "4px 12px", borderRadius: 4, border: `1px solid ${C.border}`,
+                background: showOMA ? C.cyanDim : "transparent", color: showOMA ? C.cyan : C.textDim,
+                fontSize: 10, cursor: "pointer", fontFamily: "inherit", fontWeight: 600
+              }}>
+                {showOMA ? "HIDE" : "SHOW"}
+              </button>
+            </div>
+            {showOMA && (
+              <div style={{ flex: 1, overflowY: "auto", padding: 0 }}>
+                <pre style={{
+                  margin: 0, padding: 14, fontFamily: "'IBM Plex Mono', monospace", fontSize: 11,
+                  lineHeight: 1.7, color: C.text, whiteSpace: "pre-wrap", wordBreak: "break-all"
+                }}>
+                  {data.omaPacket.split("\n").map((line, i) => {
+                    const isTx = line.startsWith(">>");
+                    const isRx = line.startsWith("<<");
+                    const isLabel = line.match(/^[A-Z_]+=/) && !isTx && !isRx;
+                    const isJson = line.trim().startsWith("{") || line.trim().startsWith("}") || line.trim().startsWith('"');
+                    let color = C.textMid;
+                    if (isTx) color = C.blue;
+                    if (isRx) color = C.violet;
+                    if (isLabel) color = C.cyan;
+                    if (isJson) color = C.amber;
+                    return <div key={i} style={{ color }}>{line}</div>;
+                  })}
+                </pre>
+              </div>
+            )}
+            {!showOMA && (
+              <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 8, color: C.textDim }}>
+                <span style={{ fontSize: 24 }}>📋</span>
+                <span style={{ fontSize: 12 }}>Click SHOW to view the raw</span>
+                <span style={{ fontSize: 12 }}>OMA/DCS data packet</span>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(OpticalLMSDemo));
+  </script>
+</body>
+</html>
